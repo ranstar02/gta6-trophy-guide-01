@@ -8,7 +8,7 @@
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 // Outside the grader, MAKEFUN_OUTPUT_DIR stands in for /output.
 
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-frontend.ts';
@@ -16,8 +16,9 @@ import { buildDossier } from './vendor/makefun-frontend.ts';
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const outputDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-// Start from a clean output directory so a stale file can never ride along.
-rmSync(outputDir, { recursive: true, force: true });
+// Do NOT delete the output directory itself: in the grader /output is a mount
+// point on a read-only filesystem, so removing it fails (EBUSY/EROFS) and the
+// run exits 1. The grader hands us an empty /output; just make sure it exists.
 mkdirSync(outputDir, { recursive: true });
 
 // The guide itself: every static file under app/.
