@@ -1,12 +1,14 @@
-// Leonida Trophy Atlas — entry program (Node 22, standard library only).
-// Hands the guide in: copies this repo's app/ and screenshots/ into the output
-// directory and writes dossier.json with the vendored make.fun library.
-// The output directory is /output inside the grader; outside it, the
-// MAKEFUN_OUTPUT_DIR environment variable stands in for /output:
+// Leonida Ledger — the hand-in program for gta6-trophy-guide-01 (Node 22, stdlib only).
+// It takes this repository's app/ and screenshots/ and lays them out in the output
+// directory the grader reads, then writes dossier.json there with the vendored
+// make.fun library. vendor/makefun-frontend.ts is the kit's copy and stays untouched:
+// the scorer rebuilds the dossier with its own copy and compares the two byte for byte.
+//
+// Run it locally like this:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-// The program is deterministic: same input files, same dossier bytes.
+// Outside the grader, MAKEFUN_OUTPUT_DIR stands in for /output.
 
-import { cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-frontend.ts';
@@ -14,32 +16,30 @@ import { buildDossier } from './vendor/makefun-frontend.ts';
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const outputDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-function copyTree(source, target) {
-  mkdirSync(target, { recursive: true });
-  cpSync(source, target, { recursive: true });
-}
-
-function copyScreenshots() {
-  const source = join(repoRoot, 'screenshots');
-  const target = join(outputDir, 'screenshots');
-  mkdirSync(target, { recursive: true });
-  if (!existsSync(source)) return;
-  const names = readdirSync(source).filter((name) => !name.startsWith('.')).sort();
-  for (const name of names) {
-    cpSync(join(source, name), join(target, name));
-  }
-}
-
+// Start from a clean output directory so a stale file can never ride along.
+rmSync(outputDir, { recursive: true, force: true });
 mkdirSync(outputDir, { recursive: true });
-copyTree(join(repoRoot, 'app'), join(outputDir, 'app'));
-copyScreenshots();
 
-// Caps from the competition's gate: at most 4 screenshots of 256 KiB, app/ at
-// most 993 files/directories and 48 MiB, dossier text at most 163,840 bytes.
-const dossier = buildDossier(outputDir, {
-  text_max_bytes: 163840,
-  screenshots: { max: 4, max_bytes: 262144 },
-  app_max_files: 993,
-  app_max_bytes: 50331648,
-});
-writeFileSync(join(outputDir, 'dossier.json'), dossier);
+// The guide itself: every static file under app/.
+cpSync(join(repoRoot, 'app'), join(outputDir, 'app'), { recursive: true });
+
+// The screenshots, first by name is the cover.
+mkdirSync(join(outputDir, 'screenshots'), { recursive: true });
+if (existsSync(join(repoRoot, 'screenshots'))) {
+  cpSync(join(repoRoot, 'screenshots'), join(outputDir, 'screenshots'), { recursive: true });
+}
+
+// The dossier the judge reads: screenshots, first-load totals, and the source outline.
+// Caps are the scorer's own (reference/gate.json): at most 4 screenshots of 256 KiB,
+// app/ at most 993 files and directories and 48 MiB, dossier text at most 160 KiB.
+writeFileSync(
+  join(outputDir, 'dossier.json'),
+  buildDossier(outputDir, {
+    text_max_bytes: 163840,
+    screenshots: { max: 4, max_bytes: 262144 },
+    app_max_files: 993,
+    app_max_bytes: 50331648,
+  }),
+);
+
+console.log('wrote ' + join(outputDir, 'dossier.json'));
